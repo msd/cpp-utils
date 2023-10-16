@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## UNRELEASED
     Added changelog
     Added README.md
+    Added .clangd to provide configuration for the clangd LSP
+    Added .clang-format to provide configuration for clang-format source code beautifier
 
 ## [[0.0.1]] - 2023/10/16 - Initial version 
     Added endian.hpp for converting between endianess (undefined bahavior town)
