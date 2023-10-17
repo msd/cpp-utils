@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## UNRELEASED
+    Fixed missing include guard in digits.hpp
+    Added conanfile.py to allow for creating a conan package
     Added changelog
     Added README.md
     Added .clangd to provide configuration for the clangd LSP linter
