@@ -1,6 +1,11 @@
-#include <vector>
-#include <cmath>
+#ifndef E045E175_73AB_47AF_A10F_AF45BCE24E41
+#define E045E175_73AB_47AF_A10F_AF45BCE24E41
+
 #include <algorithm>
+#include <cmath>
+#include <vector>
+
+static inline int constexpr DECIMAL_BASE = 10;
 
 std::vector<int> digits(int x)
 {
@@ -8,15 +13,15 @@ std::vector<int> digits(int x)
     {
         return digits(-x);
     }
-    else if (x == 0)
+    if (x == 0)
     {
-        return { 0 };
+        return {0};
     }
     std::vector<int> digits_;
     while (x > 0)
     {
-        digits_.push_back(x % 10);
-        x /= 10;
+        digits_.push_back(x % DECIMAL_BASE);
+        x /= DECIMAL_BASE;
     }
 #ifdef __cpp_lib_ranges
     std::ranges::reverse(digits_);
@@ -26,12 +31,8 @@ std::vector<int> digits(int x)
     return digits_;
 }
 
-int digit_count(int x)
-{
-    return std::log10(static_cast<float>(x) + 1);
-}
+auto digit_count(int x) { return static_cast<size_t>(std::log10(static_cast<float>(x) + 1)); }
 
-int digit_count_2(int x)
-{
-    return digits(x).size();
-}
+auto digit_count_2(int x) { return digits(x).size(); }
+
+#endif /* E045E175_73AB_47AF_A10F_AF45BCE24E41 */
