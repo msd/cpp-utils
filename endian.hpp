@@ -258,7 +258,7 @@ namespace msd::endian::conversion::tests
 {
     namespace my
     {
-        auto const assert = [](bool x, std::string_view msg = "")
+        static auto const asrt = [](bool x, std::string_view msg = "")
         {
             if (!x)
             {
@@ -270,52 +270,51 @@ namespace msd::endian::conversion::tests
     void endianess_conversions_test()
     {
 
-        my::assert(to_big_endian_array(static_cast<uint8_t>(0x11)) == std::array{std::byte{0x11}});
-        my::assert(to_big_endian_array(static_cast<uint16_t>(0x1122)) ==
-                       std::array<std::byte, 2>{std::byte{0x11}, std::byte{0x22}},
-                   "0x1122 little endian conversion ");
-        my::assert(to_big_endian_array(static_cast<uint32_t>(0x11223344)) ==
-                   std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44}});
-        my::assert(to_big_endian_array(static_cast<uint64_t>(0x1122334455667788ULL)) ==
-                   std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44},
-                              std::byte{0x55}, std::byte{0x66}, std::byte{0x77}, std::byte{0x88}});
+        my::asrt(to_big_endian_array(static_cast<uint8_t>(0x11)) == std::array{std::byte{0x11}});
+        my::asrt(to_big_endian_array(static_cast<uint16_t>(0x1122)) ==
+                     std::array<std::byte, 2>{std::byte{0x11}, std::byte{0x22}},
+                 "0x1122 little endian conversion ");
+        my::asrt(to_big_endian_array(static_cast<uint32_t>(0x11223344)) ==
+                 std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44}});
+        my::asrt(to_big_endian_array(static_cast<uint64_t>(0x1122334455667788ULL)) ==
+                 std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44},
+                            std::byte{0x55}, std::byte{0x66}, std::byte{0x77}, std::byte{0x88}});
 
-        my::assert(to_little_endian_array(static_cast<uint8_t>(0x11)) ==
-                   std::array{std::byte{0x11}});
-        my::assert(to_little_endian_array(static_cast<uint16_t>(0x1122)) ==
-                       std::array<std::byte, 2>{std::byte{0x22}, std::byte{0x11}},
-                   "0x1122 little endian conversion ");
-        my::assert(to_little_endian_array(static_cast<uint32_t>(0x11223344)) ==
-                   std::array{std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}});
-        my::assert(to_little_endian_array(0x1122334455667788ULL) ==
-                   std::array{std::byte{0x88}, std::byte{0x77}, std::byte{0x66}, std::byte{0x55},
-                              std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}});
+        my::asrt(to_little_endian_array(static_cast<uint8_t>(0x11)) == std::array{std::byte{0x11}});
+        my::asrt(to_little_endian_array(static_cast<uint16_t>(0x1122)) ==
+                     std::array<std::byte, 2>{std::byte{0x22}, std::byte{0x11}},
+                 "0x1122 little endian conversion ");
+        my::asrt(to_little_endian_array(static_cast<uint32_t>(0x11223344)) ==
+                 std::array{std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}});
+        my::asrt(to_little_endian_array(0x1122334455667788ULL) ==
+                 std::array{std::byte{0x88}, std::byte{0x77}, std::byte{0x66}, std::byte{0x55},
+                            std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}});
 
-        my::assert(from_big_endian_array<uint8_t>(std::array{std::byte{0x11}}) ==
-                   static_cast<uint8_t>(0x11));
-        my::assert(from_big_endian_array<uint16_t>(std::array<std::byte, 2>{
-                       std::byte{0x11}, std::byte{0x22}}) == static_cast<uint16_t>(0x1122),
-                   "0x1122 little endian conversion ");
-        my::assert(from_big_endian_array<uint32_t>(std::array{std::byte{0x11}, std::byte{0x22},
-                                                              std::byte{0x33}, std::byte{0x44}}) ==
-                   static_cast<uint32_t>(0x11223344));
-        my::assert(from_big_endian_array<uint64_t>(std::array{
-                       std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44},
-                       std::byte{0x55}, std::byte{0x66}, std::byte{0x77}, std::byte{0x88}}) ==
-                   static_cast<uint64_t>(0x1122334455667788ULL));
+        my::asrt(from_big_endian_array<uint8_t>(std::array{std::byte{0x11}}) ==
+                 static_cast<uint8_t>(0x11));
+        my::asrt(from_big_endian_array<uint16_t>(std::array<std::byte, 2>{
+                     std::byte{0x11}, std::byte{0x22}}) == static_cast<uint16_t>(0x1122),
+                 "0x1122 little endian conversion ");
+        my::asrt(from_big_endian_array<uint32_t>(std::array{std::byte{0x11}, std::byte{0x22},
+                                                            std::byte{0x33}, std::byte{0x44}}) ==
+                 static_cast<uint32_t>(0x11223344));
+        my::asrt(from_big_endian_array<uint64_t>(
+                     std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44},
+                                std::byte{0x55}, std::byte{0x66}, std::byte{0x77},
+                                std::byte{0x88}}) == static_cast<uint64_t>(0x1122334455667788ULL));
 
-        my::assert(from_little_endian_array<uint8_t>(std::array{std::byte{0x11}}) ==
-                   static_cast<uint8_t>(0x11));
-        my::assert(from_little_endian_array<uint16_t>(std::array<std::byte, 2>{
-                       std::byte{0x22}, std::byte{0x11}}) == static_cast<uint16_t>(0x1122),
-                   "0x1122 little endian conversion ");
-        my::assert(from_little_endian_array<uint32_t>(std::array{
-                       std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}}) ==
-                   static_cast<uint32_t>(0x11223344));
-        my::assert(from_little_endian_array<uint64_t>(std::array{
-                       std::byte{0x88}, std::byte{0x77}, std::byte{0x66}, std::byte{0x55},
-                       std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}}) ==
-                   static_cast<uint64_t>(0x1122334455667788ULL));
+        my::asrt(from_little_endian_array<uint8_t>(std::array{std::byte{0x11}}) ==
+                 static_cast<uint8_t>(0x11));
+        my::asrt(from_little_endian_array<uint16_t>(std::array<std::byte, 2>{
+                     std::byte{0x22}, std::byte{0x11}}) == static_cast<uint16_t>(0x1122),
+                 "0x1122 little endian conversion ");
+        my::asrt(from_little_endian_array<uint32_t>(std::array{std::byte{0x44}, std::byte{0x33},
+                                                               std::byte{0x22}, std::byte{0x11}}) ==
+                 static_cast<uint32_t>(0x11223344));
+        my::asrt(from_little_endian_array<uint64_t>(
+                     std::array{std::byte{0x88}, std::byte{0x77}, std::byte{0x66}, std::byte{0x55},
+                                std::byte{0x44}, std::byte{0x33}, std::byte{0x22},
+                                std::byte{0x11}}) == static_cast<uint64_t>(0x1122334455667788ULL));
     }
 
 } // namespace endian::conversion::tests
