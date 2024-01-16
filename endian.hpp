@@ -317,7 +317,7 @@ namespace msd::endian::conversion::tests
                                 std::byte{0x11}}) == static_cast<uint64_t>(0x1122334455667788ULL));
     }
 
-} // namespace endian::conversion::tests
+} // namespace msd::endian::conversion::tests
 // NOLINTEND(*-magic-numbers)
 
 #endif /* A894F78F_41AC_4A45_91C7_243326655654 */
