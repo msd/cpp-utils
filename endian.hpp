@@ -209,7 +209,8 @@ template <trivially_copyable Value>
 // template <typename Tout, typename Iterator, typename Sentinel, typename IteratorOut>
 template <trivially_copyable Value, std::input_iterator Iterator,
           std::sentinel_for<Iterator> Sentinel, std::output_iterator<Value> IteratorOut>
-IteratorOut many_from_big_endian(Iterator beg, Sentinel end, IteratorOut start)
+    requires(std::same_as<std::byte, typename std::iterator_traits<Iterator>::value_type>)
+IteratorOut many_from_big_endian(Iterator beg, Sentinel end, IteratorOut result)
 {
     // decltype(std::iterator_traits<Iterator>::difference_type) byte_count = end - beg;
     auto byte_count = end - beg;
@@ -222,15 +223,16 @@ IteratorOut many_from_big_endian(Iterator beg, Sentinel end, IteratorOut start)
     }
     for (auto i = beg; i != end; std::advance(i, sizeof(Value)))
     {
-        *(start++) = from_big_endian<Value>(i);
+        *(result++) = from_big_endian<Value>(i);
     }
-    return start;
+    return result;
 }
 
 // template <typename Tout, typename Iterator, typename Sentinel, typename IteratorOut>
 template <trivially_copyable Value, std::input_iterator Iterator,
           std::sentinel_for<Iterator> Sentinel, std::output_iterator<Value> IteratorOut>
-IteratorOut many_from_little_endian(Iterator beg, Sentinel end, IteratorOut start)
+    requires(std::same_as<std::byte, typename std::iterator_traits<Iterator>::value_type>)
+IteratorOut many_from_little_endian(Iterator beg, Sentinel end, IteratorOut result)
 {
     auto byte_count = end - beg;
     auto bytes_per_unit = sizeof(Value);
@@ -242,9 +244,35 @@ IteratorOut many_from_little_endian(Iterator beg, Sentinel end, IteratorOut star
     }
     for (auto i = beg; i != end; std::advance(i, sizeof(Value)))
     {
-        *(start++) = from_little_endian<Value>(i);
+        *(result++) = from_little_endian<Value>(i);
     }
-    return start;
+    return result;
+}
+
+template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
+          std::output_iterator<std::byte> IteratorOut>
+    requires(std::same_as<std::byte, typename std::iterator_traits<IteratorOut>::value_type>)
+IteratorOut many_to_little_endian(Iterator beg, Sentinel end, IteratorOut result)
+{
+    while (beg != end)
+    {
+        result = to_little_endian(*beg, result);
+        std::advance(beg);
+    }
+    return result;
+}
+
+template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
+          std::output_iterator<std::byte> IteratorOut>
+    requires(std::same_as<std::byte, typename std::iterator_traits<IteratorOut>::value_type>)
+IteratorOut many_to_big_endian(Iterator beg, Sentinel end, IteratorOut result)
+{
+    while (beg != end)
+    {
+        result = to_big_endian(*beg, result);
+        std::advance(beg);
+    }
+    return result;
 }
 
 struct assertion_failed : public std::runtime_error
@@ -267,7 +295,7 @@ namespace msd::endian::conversion::tests
         };
     } // namespace my
 
-    void endianess_conversions_test()
+    static void endianess_conversions_test()
     {
 
         my::asrt(to_big_endian_array(static_cast<uint8_t>(0x11)) == std::array{std::byte{0x11}});

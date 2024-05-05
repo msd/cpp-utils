@@ -3,9 +3,10 @@ from pathlib import Path
 from conan import ConanFile
 from conan.tools.files import copy
 
+
 class HelloRecipe(ConanFile):
     name = "msd-cpp-utils"
-    version = "0.0.2"
+    version = "0.0.3"
 
     description = "utilities for c++ to deal with endianess and byte decoding"
     author = "github:msd"
