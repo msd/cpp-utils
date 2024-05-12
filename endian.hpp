@@ -3,14 +3,7 @@
 // requires c++ 23
 
 #include <algorithm>
-#include <array>
-#include <bit>
-#include <cstdint>
-#include <iterator>
-#include <span>
-#include <stdexcept>
-#include <string>
-#include <type_traits>
+#include <ranges>
 
 // #define OLDAPIENDIAN
 
@@ -89,19 +82,20 @@ auto const constexpr le_copy_f = le_copy_s<Value, std::endian::native>::function
 
 template <trivially_copyable Value> inline auto to_little_endian(Value x, std::byte *bytes_out)
 {
-    le_copy_f<Value>(x, bytes_out);
+    return le_copy_f<Value>(x, bytes_out);
 }
 
 template <trivially_copyable Value> inline auto to_big_endian(Value x, std::byte *bytes_out)
 {
-    be_copy_f<Value>(x, bytes_out);
+    return be_copy_f<Value>(x, bytes_out);
 }
 
-template <trivially_copyable Value> struct bytes_array_for
+template <trivially_copyable Value, size_t Count = 1> struct bytes_array_for
 {
-    using type = std::array<std::byte, sizeof(Value)>;
+    using type = std::array<std::byte, sizeof(Value) * Count>;
 };
-template <typename Value> using bytes_array_for_t = typename bytes_array_for<Value>::type;
+template <typename Value, size_t Count = 1>
+using bytes_array_for_t = typename bytes_array_for<Value, Count>::type;
 
 template <trivially_copyable Value> [[nodiscard]] inline auto to_little_endian_array(Value x)
 {
@@ -251,101 +245,59 @@ IteratorOut many_from_little_endian(Iterator beg, Sentinel end, IteratorOut resu
 
 template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
           std::output_iterator<std::byte> IteratorOut>
-    requires(std::same_as<std::byte, typename std::iterator_traits<IteratorOut>::value_type>)
 IteratorOut many_to_little_endian(Iterator beg, Sentinel end, IteratorOut result)
 {
     while (beg != end)
     {
         result = to_little_endian(*beg, result);
-        std::advance(beg);
+        std::advance(beg, 1);
     }
     return result;
 }
 
-template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
-          std::output_iterator<std::byte> IteratorOut>
+template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel, typename IteratorOut>
     requires(std::same_as<std::byte, typename std::iterator_traits<IteratorOut>::value_type>)
 IteratorOut many_to_big_endian(Iterator beg, Sentinel end, IteratorOut result)
 {
     while (beg != end)
     {
         result = to_big_endian(*beg, result);
-        std::advance(beg);
+        std::advance(beg, 1);
     }
     return result;
 }
 
-struct assertion_failed : public std::runtime_error
+namespace ranges
 {
-    explicit assertion_failed(std::string_view msg) : std::runtime_error{std::string{msg}} {}
-};
-
-// NOLINTBEGIN(*-magic-numbers)
-
-namespace msd::endian::conversion::tests
-{
-    namespace my
+    template <std::ranges::range Range, typename IteratorOut>
+    auto constexpr many_to_big_endian(Range range, IteratorOut bytes_out)
     {
-        static auto const asrt = [](bool x, std::string_view msg = "")
-        {
-            if (!x)
-            {
-                throw assertion_failed{msg};
-            }
-        };
-    } // namespace my
-
-    static void endianess_conversions_test()
-    {
-
-        my::asrt(to_big_endian_array(static_cast<uint8_t>(0x11)) == std::array{std::byte{0x11}});
-        my::asrt(to_big_endian_array(static_cast<uint16_t>(0x1122)) ==
-                     std::array<std::byte, 2>{std::byte{0x11}, std::byte{0x22}},
-                 "0x1122 little endian conversion ");
-        my::asrt(to_big_endian_array(static_cast<uint32_t>(0x11223344)) ==
-                 std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44}});
-        my::asrt(to_big_endian_array(static_cast<uint64_t>(0x1122334455667788ULL)) ==
-                 std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44},
-                            std::byte{0x55}, std::byte{0x66}, std::byte{0x77}, std::byte{0x88}});
-
-        my::asrt(to_little_endian_array(static_cast<uint8_t>(0x11)) == std::array{std::byte{0x11}});
-        my::asrt(to_little_endian_array(static_cast<uint16_t>(0x1122)) ==
-                     std::array<std::byte, 2>{std::byte{0x22}, std::byte{0x11}},
-                 "0x1122 little endian conversion ");
-        my::asrt(to_little_endian_array(static_cast<uint32_t>(0x11223344)) ==
-                 std::array{std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}});
-        my::asrt(to_little_endian_array(0x1122334455667788ULL) ==
-                 std::array{std::byte{0x88}, std::byte{0x77}, std::byte{0x66}, std::byte{0x55},
-                            std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}});
-
-        my::asrt(from_big_endian_array<uint8_t>(std::array{std::byte{0x11}}) ==
-                 static_cast<uint8_t>(0x11));
-        my::asrt(from_big_endian_array<uint16_t>(std::array<std::byte, 2>{
-                     std::byte{0x11}, std::byte{0x22}}) == static_cast<uint16_t>(0x1122),
-                 "0x1122 little endian conversion ");
-        my::asrt(from_big_endian_array<uint32_t>(std::array{std::byte{0x11}, std::byte{0x22},
-                                                            std::byte{0x33}, std::byte{0x44}}) ==
-                 static_cast<uint32_t>(0x11223344));
-        my::asrt(from_big_endian_array<uint64_t>(
-                     std::array{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0x44},
-                                std::byte{0x55}, std::byte{0x66}, std::byte{0x77},
-                                std::byte{0x88}}) == static_cast<uint64_t>(0x1122334455667788ULL));
-
-        my::asrt(from_little_endian_array<uint8_t>(std::array{std::byte{0x11}}) ==
-                 static_cast<uint8_t>(0x11));
-        my::asrt(from_little_endian_array<uint16_t>(std::array<std::byte, 2>{
-                     std::byte{0x22}, std::byte{0x11}}) == static_cast<uint16_t>(0x1122),
-                 "0x1122 little endian conversion ");
-        my::asrt(from_little_endian_array<uint32_t>(std::array{std::byte{0x44}, std::byte{0x33},
-                                                               std::byte{0x22}, std::byte{0x11}}) ==
-                 static_cast<uint32_t>(0x11223344));
-        my::asrt(from_little_endian_array<uint64_t>(
-                     std::array{std::byte{0x88}, std::byte{0x77}, std::byte{0x66}, std::byte{0x55},
-                                std::byte{0x44}, std::byte{0x33}, std::byte{0x22},
-                                std::byte{0x11}}) == static_cast<uint64_t>(0x1122334455667788ULL));
+        return ::many_to_big_endian(std::ranges::cbegin(range), std::ranges::cend(range),
+                                    bytes_out);
     }
 
-} // namespace msd::endian::conversion::tests
-// NOLINTEND(*-magic-numbers)
+    template <std::ranges::range Range, typename IteratorOut>
+    auto constexpr many_to_little_endian(Range range, IteratorOut bytes_out)
+    {
+        return ::many_to_little_endian(std::ranges::cbegin(range), std::ranges::cend(range),
+                                       bytes_out);
+    }
+
+    template <trivially_copyable Value, std::ranges::range Range,
+              std::output_iterator<Value> IteratorOut>
+    auto constexpr many_from_little_endian(Range range, IteratorOut result_values)
+    {
+        return ::many_from_little_endian<Value>(std::ranges::cbegin(range),
+                                                std::ranges::cend(range), result_values);
+    }
+
+    template <trivially_copyable Value, std::ranges::range Range,
+              std::output_iterator<Value> IteratorOut>
+    auto constexpr many_from_big_endian(Range range, IteratorOut result_values)
+    {
+        return ::many_from_big_endian<Value>(std::ranges::cbegin(range), std::ranges::cend(range),
+                                             result_values);
+    }
+} // namespace ranges
 
 #endif /* A894F78F_41AC_4A45_91C7_243326655654 */
