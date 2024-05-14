@@ -5,16 +5,18 @@
 #include <ostream>
 #include <ranges>
 #include <stdexcept>
-#include <vector>
 
-#include "endian.hpp"
+#include "endian_containers.hpp"
+
+using namespace msd::utils::endian;
+using namespace msd::utils::endian::containers;
 
 struct assertion_failed : public std::runtime_error
 {
     explicit assertion_failed(std::string_view msg) : std::runtime_error{std::string{msg}} {}
 };
 
-// NOLINTBEGIN(*-magic-numbers)
+// NOLINTBEGIN(*magic*numbers*)
 
 namespace msd::endian::conversion::tests
 {
@@ -155,9 +157,41 @@ namespace msd::endian::conversion::tests
         }
     }
 
+    static void container_test()
+    {
+        std::array<std::byte, 8> const expected{
+            std::byte{0x12}, std::byte{0x34}, std::byte{0x56}, std::byte{0x78},
+            std::byte{0x13}, std::byte{0x24}, std::byte{0x35}, std::byte{0x47},
+        };
+
+        {
+            std::array<uint32_t, 2> data{0x12345678, 0x13243546};
+            auto const got = many_to_big_endian_vector(data.cbegin(), data.cend());
+            rng_asrt(got, expected, "containers be 2");
+        }
+
+        {
+            std::array<uint64_t, 1> data{0x1234567813243546};
+            auto const got = many_to_big_endian_vector(data.cbegin(), data.cend());
+            rng_asrt(got, expected, "containers be 1");
+        }
+
+        {
+            std::array<uint32_t, 2> data{0x78563412, 0x46352413};
+            auto const got = many_to_little_endian_vector(data.cbegin(), data.cend());
+            rng_asrt(got, expected, "containers little endian 2");
+        }
+
+        {
+            std::array<uint64_t, 1> data{0x4635241378563412};
+            auto const got = many_to_little_endian_vector(data.cbegin(), data.cend());
+            rng_asrt(got, expected, "containers little endian 1");
+        }
+    }
+
 } // namespace msd::endian::conversion::tests
 
-// NOLINTEND(*-magic-numbers)
+// NOLINTEND(*magic*numbers*)
 
 int main()
 {

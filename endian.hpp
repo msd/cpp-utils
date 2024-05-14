@@ -3,301 +3,313 @@
 // requires c++ 23
 
 #include <algorithm>
-#include <ranges>
+#include <iterator>
+#include <span>
+#include <type_traits>
 
 // #define OLDAPIENDIAN
 
-template <typename T>
-concept trivially_copyable = std::is_trivially_copyable_v<T>;
-
-static_assert(trivially_copyable<int>);
-
-// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast,
-// cppcoreguidelines-pro-bounds-pointer-arithmetic)
-
-template <trivially_copyable Value> inline auto copy_direct(Value x, std::byte *bytes_out)
+namespace msd::utils::endian
 {
-    auto const bytes_in = reinterpret_cast<std::byte *>(&x);
-    // return std::ranges::copy(std::span{bytes_in, sizeof x}, bytes_out);
-    // return std::ranges::copy(std::ranges::subrange{bytes_in, bytes_in + sizeof x}, bytes_out);
-    return std::copy(bytes_in, bytes_in + sizeof x, bytes_out);
-}
+    template <typename T>
+    concept trivially_copyable = std::is_trivially_copyable_v<T>;
 
-template <trivially_copyable Value> inline auto copy_reverse(Value x, std::byte *bytes_out)
-{
-    auto const bytes_in = reinterpret_cast<std::byte *>(&x);
-    // return std::ranges::reverse_copy(std::span{bytes_in, sizeof x}, bytes_out);
-    // return std::ranges::reverse_copy(std::ranges::subrange{bytes_in, bytes_in + sizeof x},
-    //                                  bytes_out);
-    return std::reverse_copy(bytes_in, bytes_in + sizeof x, bytes_out);
-}
+    static_assert(trivially_copyable<int>);
 
-template <trivially_copyable Value, std::input_iterator Iterator>
-    requires(std::same_as<typename std::iterator_traits<Iterator>::value_type, std::byte>)
-[[nodiscard]] inline auto load_direct(Iterator bytes_in)
-{
-    Value value{};
-    auto bytes_out = reinterpret_cast<std::byte *>(&value);
-    std::span<std::byte const> bytes(bytes_in, sizeof(Value));
-    std::ranges::copy(bytes, bytes_out);
-    return value;
-}
-template <trivially_copyable Value, std::input_iterator Iterator>
-    requires(std::same_as<typename std::iterator_traits<Iterator>::value_type, std::byte>)
-[[nodiscard]] inline auto load_reverse(Iterator bytes_in)
-{
-    Value value{};
-    auto bytes_out = reinterpret_cast<std::byte *>(&value);
-    std::reverse_copy(bytes_in, bytes_in + sizeof(Value), bytes_out);
-    return value;
-}
-
-// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast,
-// cppcoreguidelines-pro-bounds-pointer-arithmetic)
-
-template <trivially_copyable Int, std::endian> struct be_copy_s;
-template <trivially_copyable Int> struct be_copy_s<Int, std::endian::little>
-{
-    static auto constexpr function = copy_reverse<Int>;
-};
-template <trivially_copyable Int> struct be_copy_s<Int, std::endian::big>
-{
-    static auto constexpr function = copy_direct<Int>;
-};
-template <typename Value>
-auto const constexpr be_copy_f = be_copy_s<Value, std::endian::native>::function;
-
-// Copy byte from value to an output iterator
-template <trivially_copyable Int, std::endian> struct le_copy_s;
-template <trivially_copyable Int> struct le_copy_s<Int, std::endian::little>
-{
-    static auto constexpr function = copy_direct<Int>;
-};
-template <trivially_copyable Int> struct le_copy_s<Int, std::endian::big>
-{
-    static auto constexpr function = copy_reverse<Int>;
-};
-template <typename Value>
-auto const constexpr le_copy_f = le_copy_s<Value, std::endian::native>::function;
-
-template <trivially_copyable Value> inline auto to_little_endian(Value x, std::byte *bytes_out)
-{
-    return le_copy_f<Value>(x, bytes_out);
-}
-
-template <trivially_copyable Value> inline auto to_big_endian(Value x, std::byte *bytes_out)
-{
-    return be_copy_f<Value>(x, bytes_out);
-}
-
-template <trivially_copyable Value, size_t Count = 1> struct bytes_array_for
-{
-    using type = std::array<std::byte, sizeof(Value) * Count>;
-};
-template <typename Value, size_t Count = 1>
-using bytes_array_for_t = typename bytes_array_for<Value, Count>::type;
-
-template <trivially_copyable Value> [[nodiscard]] inline auto to_little_endian_array(Value x)
-{
-    bytes_array_for_t<Value> bytes_out{};
-    to_little_endian(x, bytes_out.data());
-    return bytes_out;
-}
-template <trivially_copyable Value> [[nodiscard]] inline auto to_big_endian_array(Value x)
-{
-    bytes_array_for_t<Value> bytes_out{};
-    to_big_endian(x, bytes_out.data());
-    return bytes_out;
-}
-
-// TEMPLATE SPECIALIZATION VERSION
-// template <trivially_copyable Value, typename Iterator, std::endian> struct le_load_s;
-// template <trivially_copyable Value, typename Iterator>
-// struct le_load_s<Value, Iterator, std::endian::little>
-// {
-//     static auto const constexpr function = load_direct<Value, Iterator>;
-// };
-// template <trivially_copyable Value, typename Iterator>
-// struct le_load_s<Value, Iterator, std::endian::big>
-// {
-//     static auto const constexpr function = load_reverse<Value, Iterator>;
-// };
-// template <trivially_copyable Value, typename Iterator>
-// auto const constexpr le_load = le_load_s<Value, Iterator, std::endian::native>::function;
-
-// template <std::endian, trivially_copyable Value, std::input_iterator Iterator> struct be_load_s;
-// template <trivially_copyable Value, typename Iterator>
-// struct be_load_s<std::endian::little, Value, Iterator>
-// {
-//     static auto const constexpr function = load_reverse<Value, Iterator>;
-// };
-// template <trivially_copyable Value, std::input_iterator Iterator>
-// struct be_load_s<std::endian::big, Value, Iterator>
-// {
-//     static auto const constexpr function = load_direct<Value, Iterator>;
-// };
-// template <trivially_copyable Value, typename Iterator>
-// auto const constexpr be_load = be_load_s<std::endian::native, Value, Iterator>::function;
-
-// CONSTEXPR VERSION
-template <trivially_copyable Value, typename Iterator> struct le_load_s
-{
-    static auto constexpr f()
+    template <trivially_copyable Value, std::output_iterator<std::byte> OutputIterator>
+    inline auto constexpr dump_direct(Value x, OutputIterator bytes_out)
     {
-        if constexpr (std::endian::native == std::endian::little)
+        auto const bytes_in = std::as_bytes(std::span<Value const, 1>{&x, 1});
+        return std::copy(std::cbegin(bytes_in), std::cend(bytes_in), bytes_out);
+
+        // auto const bytes_in = reinterpret_cast<std::byte *>(&x);
+        // return std::copy(bytes_in, bytes_in + sizeof x, bytes_out);
+
+        // auto const bytes_in = reinterpret_cast<std::byte *>(&x);
+        // std::ranges::copy(std::span<std::byte const, sizeof x>{bytes_in, sizeof x}, bytes_out);
+        // return std::next(bytes_out, sizeof x);
+
+        // for (std::byte const &byte : std::as_bytes(std::span<Value const, 1>{&x, 1}))
+        // {
+        //     *bytes_out = byte;
+        //     std::advance(bytes_out, 1);
+        // }
+        // return bytes_out;
+    }
+
+    template <trivially_copyable Value, std::output_iterator<std::byte> OutputIterator>
+    inline auto constexpr dump_reverse(Value x, OutputIterator bytes_out)
+    {
+        auto const bytes_in = std::as_bytes(std::span<Value const, 1>{&x, 1});
+        return std::reverse_copy(std::cbegin(bytes_in), std::cend(bytes_in), bytes_out);
+
+        // auto const bytes_in = reinterpret_cast<std::byte *>(&x);
+        // return std::reverse_copy(bytes_in, bytes_in + sizeof x, bytes_out);
+
+        // auto const bytes_in = reinterpret_cast<std::byte *>(&x);
+        // std::ranges::reverse_copy(std::span<std::byte const, sizeof x>{bytes_in, sizeof x},
+        //                           bytes_out);
+        // return std::next(bytes_out, sizeof x);
+
+        // auto bytes_in = std::as_bytes(std::span<Value const, 1>{&x, 1});
+        // auto const bytes_in_beg = std::cbegin(bytes_in);
+        // auto const bytes_in_end = std::cend(bytes_in);
+        // auto bytes_in_it = bytes_in_end;
+        // while (bytes_in_it != bytes_in_beg)
+        // {
+        //     std::advance(bytes_in_it, -1);
+        //     *bytes_out = *bytes_in_it;
+        //     std::advance(bytes_out, 1);
+        // }
+        // return bytes_out;
+    }
+
+    template <trivially_copyable Value, std::input_iterator BytesInputIterator>
+        requires(std::same_as<std::iter_value_t<BytesInputIterator>, std::byte>)
+    [[nodiscard]] inline auto load_direct(BytesInputIterator bytes_in)
+    {
+        Value value{};
+        // auto bytes_out = reinterpret_cast<std::byte *>(&value);
+        auto bytes_out = std::as_writable_bytes(std::span<Value, 1>{&value, 1});
+        std::copy(bytes_in, std::next(bytes_in, sizeof(Value)), std::begin(bytes_out));
+        return value;
+    }
+    template <trivially_copyable Value, std::input_iterator BytesInputIterator>
+        requires(
+            std::same_as<std::remove_cvref_t<std::iter_value_t<BytesInputIterator>>, std::byte>)
+    [[nodiscard]] inline auto load_reverse(BytesInputIterator bytes_in)
+    {
+        Value value{};
+        auto bytes_out = std::as_writable_bytes(std::span<Value, 1>{&value, 1});
+        std::reverse_copy(bytes_in, std::next(bytes_in, sizeof(Value)), std::begin(bytes_out));
+        return value;
+    }
+
+    template <trivially_copyable Int, std::output_iterator<std::byte> BytesOutputIterator,
+              std::endian>
+    struct be_dump_s;
+    template <trivially_copyable Int, std::output_iterator<std::byte> BytesOutputIterator>
+    struct be_dump_s<Int, BytesOutputIterator, std::endian::little>
+    {
+        static auto constexpr function = dump_reverse<Int, BytesOutputIterator>;
+    };
+    template <trivially_copyable Int, std::output_iterator<std::byte> BytesOutputIterator>
+    struct be_dump_s<Int, BytesOutputIterator, std::endian::big>
+    {
+        static auto constexpr function = dump_direct<Int, BytesOutputIterator>;
+    };
+    template <typename Value, typename BytesOutputIterator>
+    auto const constexpr be_copy_f =
+        be_dump_s<Value, BytesOutputIterator, std::endian::native>::function;
+
+    // Copy byte from value to an output iterator
+    template <trivially_copyable Value, std::output_iterator<std::byte> ByteOutputIterator,
+              std::endian>
+    struct le_dump_s;
+    template <trivially_copyable Value, std::output_iterator<std::byte> ByteOutputIterator>
+    struct le_dump_s<Value, ByteOutputIterator, std::endian::little>
+    {
+        static auto constexpr function = dump_direct<Value, ByteOutputIterator>;
+    };
+    template <trivially_copyable Value, std::output_iterator<std::byte> ByteOutputIterator>
+    struct le_dump_s<Value, ByteOutputIterator, std::endian::big>
+    {
+        static auto constexpr function = dump_reverse<Value, ByteOutputIterator>;
+    };
+    template <typename Value, typename OutputIterator>
+    auto const constexpr le_copy_f =
+        le_dump_s<Value, OutputIterator, std::endian::native>::function;
+
+    template <trivially_copyable Value, std::output_iterator<std::byte> BytesOutputIterator>
+    inline auto to_little_endian(Value x, BytesOutputIterator bytes_out)
+    {
+        return le_copy_f<Value, BytesOutputIterator>(x, bytes_out);
+    }
+
+    template <trivially_copyable Value, std::output_iterator<std::byte> BytesOutputIterator>
+    inline auto to_big_endian(Value x, BytesOutputIterator bytes_out)
+    {
+        return be_copy_f<Value, BytesOutputIterator>(x, bytes_out);
+    }
+
+    // TEMPLATE SPECIALIZATION VERSION
+    // template <trivially_copyable Value, typename Iterator, std::endian> struct le_load_s;
+    // template <trivially_copyable Value, typename Iterator>
+    // struct le_load_s<Value, Iterator, std::endian::little>
+    // {
+    //     static auto const constexpr function = load_direct<Value, Iterator>;
+    // };
+    // template <trivially_copyable Value, typename Iterator>
+    // struct le_load_s<Value, Iterator, std::endian::big>
+    // {
+    //     static auto const constexpr function = load_reverse<Value, Iterator>;
+    // };
+    // template <trivially_copyable Value, typename Iterator>
+    // auto const constexpr le_load = le_load_s<Value, Iterator, std::endian::native>::function;
+
+    // template <std::endian, trivially_copyable Value, std::input_iterator Iterator> struct
+    // be_load_s; template <trivially_copyable Value, typename Iterator> struct
+    // be_load_s<std::endian::little, Value, Iterator>
+    // {
+    //     static auto const constexpr function = load_reverse<Value, Iterator>;
+    // };
+    // template <trivially_copyable Value, std::input_iterator Iterator>
+    // struct be_load_s<std::endian::big, Value, Iterator>
+    // {
+    //     static auto const constexpr function = load_direct<Value, Iterator>;
+    // };
+    // template <trivially_copyable Value, typename Iterator>
+    // auto const constexpr be_load = be_load_s<std::endian::native, Value, Iterator>::function;
+
+    // CONSTEXPR VERSION
+    template <trivially_copyable Value, typename BytesInputIterator> struct le_load_s
+    {
+        static auto constexpr f()
         {
-            return load_direct<Value, Iterator>;
+            if constexpr (std::endian::native == std::endian::little)
+            {
+                return load_direct<Value, BytesInputIterator>;
+            }
+            else
+            {
+                return load_reverse<Value, BytesInputIterator>;
+            }
         }
-        else
+        static auto const constexpr function = f();
+    };
+    template <trivially_copyable Value, typename BytesInputIterator>
+    auto const constexpr le_load = le_load_s<Value, BytesInputIterator>::function;
+
+    template <trivially_copyable Value, typename BytesInputIterator> struct be_load_s
+    {
+        static auto constexpr f()
         {
-            return load_reverse<Value, Iterator>;
+            if constexpr (std::endian::native == std::endian::big)
+            {
+                return load_direct<Value, BytesInputIterator>;
+            }
+            else
+            {
+                return load_reverse<Value, BytesInputIterator>;
+            }
         }
-    }
-    static auto const constexpr function = f();
-};
-template <trivially_copyable Value, typename Iterator>
-auto const constexpr le_load = le_load_s<Value, Iterator>::function;
+        static auto const constexpr function = f();
+    };
+    template <trivially_copyable Value, typename ByteInputIterator>
+    auto const constexpr be_load = be_load_s<Value, ByteInputIterator>::function;
 
-template <trivially_copyable Value, typename Iterator> struct be_load_s
-{
-    static auto constexpr f()
+    template <trivially_copyable Value, std::input_iterator ByteInputIterator>
+    [[nodiscard]] inline Value from_little_endian(ByteInputIterator beg)
     {
-        if constexpr (std::endian::native == std::endian::big)
+        return le_load<Value, ByteInputIterator>(beg);
+    }
+
+    template <trivially_copyable Value, std::input_iterator BytesInputIterator>
+    // requires std::same_as<typename ByteIter::value_type, std::byte>
+    [[nodiscard]] inline Value from_big_endian(BytesInputIterator beg)
+    {
+        return be_load<Value, BytesInputIterator>(beg);
+    }
+
+    // template <typename Tout, typename Iterator, typename Sentinel, typename IteratorOut>
+    template <trivially_copyable Value, std::input_iterator ByteIterator,
+              std::sentinel_for<ByteIterator> ByteSentinel, std::output_iterator<Value> IteratorOut>
+        requires(std::same_as<std::byte, std::remove_cvref_t<std::iter_value_t<ByteIterator>>>)
+    IteratorOut many_from_big_endian(ByteIterator beg, ByteSentinel end, IteratorOut result)
+    {
+        auto const byte_count = std::distance(beg, end);
+        size_t bytes_per_unit = sizeof(Value);
+        if (byte_count % bytes_per_unit != 0)
         {
-            return load_direct<Value, Iterator>;
+            throw std::runtime_error(
+                "number of bytes given is not an integer multiple of the bytes per unit (count " +
+                std::to_string(byte_count) + ", unit " + std::to_string(bytes_per_unit) + ")");
         }
-        else
+        for (auto i = beg; i != end; std::advance(i, sizeof(Value)), std::advance(result, 1))
         {
-            return load_reverse<Value, Iterator>;
+            *result = from_big_endian<Value>(i);
         }
+        return result;
     }
-    static auto const constexpr function = f();
-};
-template <trivially_copyable Value, typename Iterator>
-auto const constexpr be_load = be_load_s<Value, Iterator>::function;
 
-template <trivially_copyable Value, std::input_iterator ByteIter>
-[[nodiscard]] inline Value from_little_endian(ByteIter beg)
-{
-    return le_load<Value, ByteIter>(beg);
-}
-
-template <trivially_copyable Value>
-[[nodiscard]] inline Value from_little_endian_array(bytes_array_for_t<Value> const &bytes)
-{
-    return le_load<Value, std::byte const *>(bytes.data());
-}
-template <trivially_copyable Value, std::input_iterator ByteIter>
-// requires std::same_as<typename ByteIter::value_type, std::byte>
-[[nodiscard]] inline Value from_big_endian(ByteIter beg)
-{
-    return be_load<Value, ByteIter>(beg);
-}
-
-template <trivially_copyable Value>
-[[nodiscard]] inline Value from_big_endian_array(bytes_array_for_t<Value> const &bytes)
-{
-    return be_load<Value, std::byte const *>(bytes.data());
-}
-
-// template <typename Tout, typename Iterator, typename Sentinel, typename IteratorOut>
-template <trivially_copyable Value, std::input_iterator Iterator,
-          std::sentinel_for<Iterator> Sentinel, std::output_iterator<Value> IteratorOut>
-    requires(std::same_as<std::byte, typename std::iterator_traits<Iterator>::value_type>)
-IteratorOut many_from_big_endian(Iterator beg, Sentinel end, IteratorOut result)
-{
-    // decltype(std::iterator_traits<Iterator>::difference_type) byte_count = end - beg;
-    auto byte_count = end - beg;
-    size_t bytes_per_unit = sizeof(Value);
-    if (byte_count % bytes_per_unit != 0)
+    // template <typename Tout, typename Iterator, typename Sentinel, typename IteratorOut>
+    template <trivially_copyable Value, std::input_iterator Iterator,
+              std::sentinel_for<Iterator> Sentinel, std::output_iterator<Value> IteratorOut>
+        requires(std::same_as<std::byte, std::iter_value_t<Iterator>>)
+    IteratorOut many_from_little_endian(Iterator beg, Sentinel end, IteratorOut result)
     {
-        throw std::runtime_error(
-            "number of bytes given is not an integer multiple of the bytes per unit (count " +
-            std::to_string(byte_count) + ", unit " + std::to_string(bytes_per_unit) + ")");
-    }
-    for (auto i = beg; i != end; std::advance(i, sizeof(Value)))
-    {
-        *(result++) = from_big_endian<Value>(i);
-    }
-    return result;
-}
-
-// template <typename Tout, typename Iterator, typename Sentinel, typename IteratorOut>
-template <trivially_copyable Value, std::input_iterator Iterator,
-          std::sentinel_for<Iterator> Sentinel, std::output_iterator<Value> IteratorOut>
-    requires(std::same_as<std::byte, typename std::iterator_traits<Iterator>::value_type>)
-IteratorOut many_from_little_endian(Iterator beg, Sentinel end, IteratorOut result)
-{
-    auto byte_count = end - beg;
-    auto bytes_per_unit = sizeof(Value);
-    if (byte_count % bytes_per_unit != 0)
-    {
-        throw std::runtime_error(
-            "number of bytes given is not an integer multiple of the bytes per unit (count " +
-            std::to_string(byte_count) + ", unit " + std::to_string(bytes_per_unit) + ")");
-    }
-    for (auto i = beg; i != end; std::advance(i, sizeof(Value)))
-    {
-        *(result++) = from_little_endian<Value>(i);
-    }
-    return result;
-}
-
-template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
-          std::output_iterator<std::byte> IteratorOut>
-IteratorOut many_to_little_endian(Iterator beg, Sentinel end, IteratorOut result)
-{
-    while (beg != end)
-    {
-        result = to_little_endian(*beg, result);
-        std::advance(beg, 1);
-    }
-    return result;
-}
-
-template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel, typename IteratorOut>
-    requires(std::same_as<std::byte, typename std::iterator_traits<IteratorOut>::value_type>)
-IteratorOut many_to_big_endian(Iterator beg, Sentinel end, IteratorOut result)
-{
-    while (beg != end)
-    {
-        result = to_big_endian(*beg, result);
-        std::advance(beg, 1);
-    }
-    return result;
-}
-
-namespace ranges
-{
-    template <std::ranges::range Range, typename IteratorOut>
-    auto constexpr many_to_big_endian(Range range, IteratorOut bytes_out)
-    {
-        return ::many_to_big_endian(std::ranges::cbegin(range), std::ranges::cend(range),
-                                    bytes_out);
+        auto const byte_count = std::distance(beg, end);
+        auto bytes_per_unit = sizeof(Value);
+        if (byte_count % bytes_per_unit != 0)
+        {
+            throw std::runtime_error(
+                "number of bytes given is not an integer multiple of the bytes per unit (count " +
+                std::to_string(byte_count) + ", unit " + std::to_string(bytes_per_unit) + ")");
+        }
+        for (auto i = beg; i != end; std::advance(i, sizeof(Value)), std::advance(result, 1))
+        {
+            *result = from_little_endian<Value>(i);
+        }
+        return result;
     }
 
-    template <std::ranges::range Range, typename IteratorOut>
-    auto constexpr many_to_little_endian(Range range, IteratorOut bytes_out)
+    template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
+              std::output_iterator<std::byte> IteratorOut>
+    IteratorOut many_to_little_endian(Iterator beg, Sentinel end, IteratorOut result)
     {
-        return ::many_to_little_endian(std::ranges::cbegin(range), std::ranges::cend(range),
-                                       bytes_out);
+        while (beg != end)
+        {
+            result = to_little_endian(*beg, result);
+            std::advance(beg, 1);
+        }
+        return result;
     }
 
-    template <trivially_copyable Value, std::ranges::range Range,
-              std::output_iterator<Value> IteratorOut>
-    auto constexpr many_from_little_endian(Range range, IteratorOut result_values)
+    template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
+              std::output_iterator<std::byte> IteratorOut>
+    IteratorOut many_to_big_endian(Iterator beg, Sentinel end, IteratorOut result)
     {
-        return ::many_from_little_endian<Value>(std::ranges::cbegin(range),
-                                                std::ranges::cend(range), result_values);
+        while (beg != end)
+        {
+            result = to_big_endian(*beg, result);
+            std::advance(beg, 1);
+        }
+        return result;
     }
 
-    template <trivially_copyable Value, std::ranges::range Range,
-              std::output_iterator<Value> IteratorOut>
-    auto constexpr many_from_big_endian(Range range, IteratorOut result_values)
+    namespace ranges
     {
-        return ::many_from_big_endian<Value>(std::ranges::cbegin(range), std::ranges::cend(range),
-                                             result_values);
-    }
-} // namespace ranges
+        template <std::ranges::range Range, typename IteratorOut>
+        auto constexpr many_to_big_endian(Range range, IteratorOut result_bytes)
+        {
+            return msd::utils::endian::many_to_big_endian(std::ranges::cbegin(range),
+                                                          std::ranges::cend(range), result_bytes);
+        }
+
+        template <std::ranges::range Range, typename IteratorOut>
+        auto constexpr many_to_little_endian(Range range, IteratorOut result_bytes)
+        {
+            return msd::utils::endian::many_to_little_endian(
+                std::ranges::cbegin(range), std::ranges::cend(range), result_bytes);
+        }
+
+        template <trivially_copyable Value, std::ranges::range Range,
+                  std::output_iterator<Value> IteratorOut>
+        auto constexpr many_from_little_endian(Range range, IteratorOut result_values)
+        {
+            return msd::utils::endian::many_from_little_endian<Value>(
+                std::ranges::cbegin(range), std::ranges::cend(range), result_values);
+        }
+
+        template <trivially_copyable Value, std::ranges::range Range,
+                  std::output_iterator<Value> IteratorOut>
+        auto constexpr many_from_big_endian(Range range, IteratorOut result_values)
+        {
+            return msd::utils::endian::many_from_big_endian<Value>(
+                std::ranges::cbegin(range), std::ranges::cend(range), result_values);
+        }
+    } // namespace ranges
+
+} // namespace msd::utils::endian
 
 #endif /* A894F78F_41AC_4A45_91C7_243326655654 */

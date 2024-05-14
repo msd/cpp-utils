@@ -6,7 +6,7 @@ from conan.tools.files import copy
 
 class HelloRecipe(ConanFile):
     name = "msd-cpp-utils"
-    version = "0.0.3"
+    version = "0.0.4"
 
     description = "utilities for c++ to deal with endianess and byte decoding"
     author = "github:msd"
