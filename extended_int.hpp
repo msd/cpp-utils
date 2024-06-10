@@ -789,12 +789,31 @@ namespace msd::integer
     };
 #pragma pack(pop)
 
+    template <ssize_t A, ssize_t B> struct is_divisible_by
+    {
+        static bool const constexpr value = A % B == 0;
+    };
+    template <ssize_t A, ssize_t B>
+    auto const constexpr is_divisible_by_v = is_divisible_by<A, B>::value;
+
+    template <ssize_t X> struct is_even
+    {
+        static bool const constexpr value = is_divisible_by_v<X, 2>;
+    };
+    template <ssize_t X> auto const constexpr is_even_v = is_even<X>::value;
+
+    template <ssize_t X> struct is_odd
+    {
+        static bool const constexpr value = !is_even_v<X>;
+    };
+    template <ssize_t X> auto const constexpr is_odd_v = is_odd<X>::value;
+
     template <size_t ByteCount>
-        requires(ByteCount % sizeof(unsigned) == 0)
+        requires(is_divisible_by_v<ByteCount, sizeof(unsigned)>)
     using extended_integer_byte = extended_integer<unsigned, ByteCount / sizeof(unsigned)>;
 
     template <size_t BitCount>
-        requires(BitCount % CHAR_BIT == 0)
+        requires(is_divisible_by_v<BitCount, CHAR_BIT>)
     using extended_integer_bit = extended_integer_byte<BitCount / CHAR_BIT>;
 } // namespace msd::integer
 
