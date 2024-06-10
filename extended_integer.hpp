@@ -4,8 +4,11 @@
 #include <bit>
 #include <climits>
 #include <cmath>
+#include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <ranges>
+#include <type_traits>
 
 #include "endian_containers.hpp"
 #include "utils.hpp"
@@ -808,10 +811,74 @@ namespace msd::integer
     };
     template <ssize_t X> auto const constexpr is_odd_v = is_odd<X>::value;
 
-    template <size_t ByteCount>
-        requires(is_divisible_by_v<ByteCount, sizeof(unsigned)>)
-    using extended_integer_byte = extended_integer<unsigned, ByteCount / sizeof(unsigned)>;
+    template <size_t Size, typename T> struct is_aligned_with
+    {
+        static bool const constexpr value = is_divisible_by_v<Size, sizeof(T)>;
+    };
+    template <size_t Size, typename T>
+    auto const constexpr is_aligned_with_v = is_aligned_with<Size, T>::value;
 
+    template <size_t Size, typename T>
+    concept aligned_with = is_aligned_with_v<Size, T>;
+
+    template <size_t Size> struct aligned_int
+    {
+        using type = char;
+    };
+
+    template <size_t Size>
+        requires(aligned_with<Size, long long>)
+    struct aligned_int<Size>
+    {
+        using type = long long;
+    };
+
+    template <size_t Size>
+        requires(aligned_with<Size, long> && !aligned_with<Size, long long>)
+    struct aligned_int<Size>
+    {
+        using type = long;
+    };
+
+    template <size_t Size>
+        requires(aligned_with<Size, int> && !aligned_with<Size, long>)
+    struct aligned_int<Size>
+    {
+        using type = int;
+    };
+
+    template <size_t Size>
+        requires(aligned_with<Size, short> && !aligned_with<Size, int>)
+    struct aligned_int<Size>
+    {
+        using type = short;
+    };
+    template <size_t Size> using aligned_int_t = typename aligned_int<Size>::type;
+
+    static_assert(sizeof(aligned_int_t<1>) == 1);
+    static_assert(sizeof(aligned_int_t<3>) == 1);
+    static_assert(sizeof(aligned_int_t<15>) == 1);
+
+    static_assert(sizeof(aligned_int_t<2>) == 2);
+    static_assert(sizeof(aligned_int_t<4>) == 4);
+    static_assert(sizeof(aligned_int_t<8>) == 8);
+    static_assert(sizeof(aligned_int_t<16>) == 8);
+
+    template <size_t Size> struct aligned_uint
+    {
+        using type = std::make_unsigned_t<aligned_int_t<Size>>;
+    };
+    template <size_t Size> using aligned_uint_t = typename aligned_uint<Size>::type;
+
+    template <size_t ByteCount>
+    using extended_integer_byte =
+        extended_integer<aligned_uint_t<ByteCount>, ByteCount / sizeof(aligned_uint_t<ByteCount>)>;
+
+    /**
+     * @brief An exteneded integer type that has the specified amount of bits
+     *
+     * @tparam BitCount the number of bits that the number
+     */
     template <size_t BitCount>
         requires(is_divisible_by_v<BitCount, CHAR_BIT>)
     using extended_integer_bit = extended_integer_byte<BitCount / CHAR_BIT>;

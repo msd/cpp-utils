@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <string_view>
 
-#include "../extended_int.hpp"
+#include "../extended_integer.hpp"
 
 using uint128_t = msd::integer::extended_integer_bit<128>;
 
