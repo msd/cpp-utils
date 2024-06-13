@@ -1,0 +1,7 @@
+cmake integration
+    installation (targets)
+    require C++ 23 standard
+testing
+    digits
+    extended_integer
+move files to src folder

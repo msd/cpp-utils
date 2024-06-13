@@ -10,7 +10,13 @@ endif()
 
 add_compile_options( -fmodules-ts -fdiagnostics-color=always)
 
+add_library(common INTERFACE)
+target_compile_features(common INTERFACE cxx_std_23)
+target_compile_definitions(common INTERFACE UNICODE)
+
 add_executable(primes_test test/primes.cpp)
+add_executable(digits test/digits.cpp)
+target_link_libraries(digits PRIVATE common)
 
 target_compile_features(primes_test PUBLIC cxx_std_23)
 
